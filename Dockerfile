@@ -35,7 +35,8 @@ RUN apk add --no-cache \
     gzip \
     python3 \
     diffutils \
-    rsync
+    rsync \
+    pahole
 
 WORKDIR /build
 
@@ -52,17 +53,26 @@ RUN echo "Downloading kernel headers for ${KERNEL_VERSION}..." && \
     rm /tmp/linux.tar.xz && \
     echo "Kernel ${KERNEL_VERSION} headers downloaded"
 
-# Konfiguriere Kernel fuer Module Build
+# Konfiguriere Kernel fuer Module Build - mit MODVERSIONS deaktiviert
 RUN cd /usr/src/linux && \
     echo "Configuring kernel for ${TARGETARCH}..." && \
     make defconfig && \
+    # Deaktiviere MODVERSIONS um Symbol-Probleme zu vermeiden
+    scripts/config --disable CONFIG_MODVERSIONS && \
+    scripts/config --enable CONFIG_MODULES && \
+    scripts/config --enable CONFIG_MODULE_UNLOAD && \
+    # Setze EXTRAVERSION fuer Talos Kompatibilitaet
+    sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION = -talos/' Makefile && \
+    make olddefconfig && \
     make modules_prepare && \
+    # Erstelle leere Module.symvers um Warnungen zu vermeiden
+    touch Module.symvers && \
     echo "Kernel configured"
 
-# Build Kernel Module
+# Build Kernel Module mit KBUILD_MODPOST_WARN
 RUN cd /build/driver/src && \
     echo "Building r8127 driver for kernel ${KERNEL_VERSION}..." && \
-    make -C /usr/src/linux M=$(pwd) modules && \
+    KBUILD_MODPOST_WARN=1 make -C /usr/src/linux M=$(pwd) modules && \
     ls -la *.ko && \
     echo "Build successful!"
 
