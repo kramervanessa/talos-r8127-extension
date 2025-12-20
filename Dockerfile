@@ -78,18 +78,18 @@ RUN cd /build/driver/src && \
     echo "Build successful!"
 
 # Erstelle Talos Extension Struktur mit korrekter Kernel Version (6.18.0-talos)
-# WICHTIG: Pfad ist /rootfs/lib/modules/... (NICHT /rootfs/rootfs/...)
+# Talos Extension Format:
+#   /manifest.yaml
+#   /rootfs/lib/modules/...
 RUN KVER="6.18.0-talos" && \
-    mkdir -p /rootfs/lib/modules/${KVER}/extras && \
-    install -m 644 /build/driver/src/r8127.ko /rootfs/lib/modules/${KVER}/extras/r8127.ko && \
+    mkdir -p /extension/rootfs/lib/modules/${KVER}/extras && \
+    install -m 644 /build/driver/src/r8127.ko /extension/rootfs/lib/modules/${KVER}/extras/r8127.ko && \
     # Generiere modules.dep
-    depmod -b /rootfs ${KVER} 2>/dev/null || true && \
-    echo "Installed r8127.ko for kernel ${KVER}" && \
-    echo "=== Extension Structure ===" && \
-    find /rootfs -type f
+    depmod -b /extension/rootfs ${KVER} 2>/dev/null || true && \
+    echo "Installed r8127.ko for kernel ${KVER}"
 
-# Erstelle manifest.yaml fuer Talos Extension
-RUN cat > /rootfs/manifest.yaml << 'EOF'
+# Erstelle manifest.yaml fuer Talos Extension (im Root der Extension)
+RUN cat > /extension/manifest.yaml << 'EOF'
 version: v1alpha1
 metadata:
   name: r8127
@@ -103,13 +103,16 @@ metadata:
       version: ">= v1.12.0"
 EOF
 
+# Zeige Extension Struktur
+RUN echo "=== Extension Structure ===" && find /extension -type f
+
 # -----------------------------------------------------------------------------
 # Stage 2: Extension Image (Scratch) - Talos Extension Format
 # -----------------------------------------------------------------------------
 FROM scratch AS extension
 
-# Kopiere Extension Struktur (manifest.yaml + rootfs/)
-COPY --from=builder /rootfs/ /
+# Kopiere Extension Struktur (manifest.yaml im Root + rootfs/ Ordner)
+COPY --from=builder /extension/ /
 
 # Metadata Labels
 LABEL org.opencontainers.image.title="r8127"
