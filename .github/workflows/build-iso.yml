@@ -1,0 +1,81 @@
+name: Build Talos ISO with r8127 Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      talos_version:
+        description: 'Talos Version (z.B. v1.12.0-rc.1)'
+        required: true
+        default: 'v1.12.0-rc.1'
+      arch:
+        description: 'Architecture (amd64 or arm64)'
+        required: true
+        default: 'amd64'
+        type: choice
+        options:
+          - amd64
+          - arm64
+          - both
+
+env:
+  REGISTRY: ghcr.io
+  EXTENSION_IMAGE: ${{ github.repository_owner }}/talos-r8127-extension
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: ${{ fromJson(inputs.arch == 'both' && '["amd64", "arm64"]' || format('["{0}"]', inputs.arch)) }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build ISO
+        run: |
+          TALOS_VERSION="${{ inputs.talos_version }}"
+          ARCH="${{ matrix.arch }}"
+          
+          echo "Building Talos ISO for ${ARCH}..."
+          echo "Talos Version: ${TALOS_VERSION}"
+          echo "Extension: ${{ env.REGISTRY }}/${{ env.EXTENSION_IMAGE }}:${TALOS_VERSION}"
+          
+          mkdir -p iso-output
+          
+          docker run --rm -t \
+            --platform linux/${ARCH} \
+            -v $(pwd)/iso-output:/out \
+            ghcr.io/siderolabs/imager:${TALOS_VERSION} iso \
+            --arch ${ARCH} \
+            --system-extension-image ${{ env.REGISTRY }}/${{ env.EXTENSION_IMAGE }}:${TALOS_VERSION}
+          
+          # Rename ISO
+          mv iso-output/metal-${ARCH}.iso iso-output/talos-${TALOS_VERSION}-${ARCH}-r8127.iso
+          
+          echo "ISO created: talos-${TALOS_VERSION}-${ARCH}-r8127.iso"
+          ls -lah iso-output/
+
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: talos-iso-${{ matrix.arch }}
+          path: iso-output/*.iso
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## ISO Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Architecture | \`${{ matrix.arch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Talos Version | \`${{ inputs.talos_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Extension | \`${{ env.REGISTRY }}/${{ env.EXTENSION_IMAGE }}:${{ inputs.talos_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the ISO from the Artifacts section above." >> $GITHUB_STEP_SUMMARY
+
