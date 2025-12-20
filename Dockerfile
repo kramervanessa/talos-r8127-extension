@@ -57,15 +57,12 @@ RUN echo "Downloading kernel headers for ${KERNEL_VERSION}..." && \
 RUN cd /usr/src/linux && \
     echo "Configuring kernel for ${TARGETARCH}..." && \
     make defconfig && \
-    # Deaktiviere MODVERSIONS um Symbol-Probleme zu vermeiden
     scripts/config --disable CONFIG_MODVERSIONS && \
     scripts/config --enable CONFIG_MODULES && \
     scripts/config --enable CONFIG_MODULE_UNLOAD && \
-    # Setze EXTRAVERSION fuer Talos Kompatibilitaet
     sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION = -talos/' Makefile && \
     make olddefconfig && \
     make modules_prepare && \
-    # Erstelle leere Module.symvers um Warnungen zu vermeiden
     touch Module.symvers && \
     echo "Kernel configured"
 
@@ -76,21 +73,36 @@ RUN cd /build/driver/src && \
     ls -la *.ko && \
     echo "Build successful!"
 
-# Installiere Modul
-RUN mkdir -p /rootfs/lib/modules/${KERNEL_VERSION}-talos/extras && \
-    install -m 644 /build/driver/src/r8127.ko /rootfs/lib/modules/${KERNEL_VERSION}-talos/extras/r8127.ko && \
-    echo "r8127" > /rootfs/lib/modules/${KERNEL_VERSION}-talos/extras/r8127.conf && \
+# Erstelle Talos Extension Struktur
+# Format: /rootfs mit manifest.yaml im Root + /rootfs/lib/modules/...
+RUN mkdir -p /rootfs/rootfs/lib/modules/${KERNEL_VERSION}-talos/extras && \
+    install -m 644 /build/driver/src/r8127.ko /rootfs/rootfs/lib/modules/${KERNEL_VERSION}-talos/extras/r8127.ko && \
     echo "Installed r8127.ko for kernel ${KERNEL_VERSION}-talos"
 
+# Erstelle manifest.yaml fuer Talos Extension
+RUN cat > /rootfs/manifest.yaml << 'EOF'
+version: v1alpha1
+metadata:
+  name: r8127
+  version: 11.015.00
+  author: Realtek / Vanessa Kramer
+  description: |
+    Realtek RTL8127 10 Gigabit Ethernet driver for Talos Linux.
+    Supports RTL8127 PCIe 10G NICs found in Minisforum MS-R1 and similar devices.
+  compatibility:
+    talos:
+      version: ">= v1.12.0"
+EOF
+
 # -----------------------------------------------------------------------------
-# Stage 2: Extension Image (Scratch)
+# Stage 2: Extension Image (Scratch) - Talos Extension Format
 # -----------------------------------------------------------------------------
 FROM scratch AS extension
 
-# Extension Files
-COPY --from=builder /rootfs/lib /lib
+# Kopiere Extension Struktur (manifest.yaml + rootfs/)
+COPY --from=builder /rootfs/ /
 
-# Metadata
+# Metadata Labels
 LABEL org.opencontainers.image.title="r8127"
 LABEL org.opencontainers.image.description="Realtek RTL8127 10 Gigabit Ethernet driver for Talos Linux"
 LABEL org.opencontainers.image.version="11.015.00"
