@@ -78,12 +78,15 @@ RUN cd /build/driver/src && \
     echo "Build successful!"
 
 # Erstelle Talos Extension Struktur mit korrekter Kernel Version (6.18.0-talos)
+# WICHTIG: Pfad ist /rootfs/lib/modules/... (NICHT /rootfs/rootfs/...)
 RUN KVER="6.18.0-talos" && \
-    mkdir -p /rootfs/rootfs/lib/modules/${KVER}/extras && \
-    install -m 644 /build/driver/src/r8127.ko /rootfs/rootfs/lib/modules/${KVER}/extras/r8127.ko && \
+    mkdir -p /rootfs/lib/modules/${KVER}/extras && \
+    install -m 644 /build/driver/src/r8127.ko /rootfs/lib/modules/${KVER}/extras/r8127.ko && \
     # Generiere modules.dep
-    depmod -b /rootfs/rootfs ${KVER} 2>/dev/null || true && \
-    echo "Installed r8127.ko for kernel ${KVER}"
+    depmod -b /rootfs ${KVER} 2>/dev/null || true && \
+    echo "Installed r8127.ko for kernel ${KVER}" && \
+    echo "=== Extension Structure ===" && \
+    find /rootfs -type f
 
 # Erstelle manifest.yaml fuer Talos Extension
 RUN cat > /rootfs/manifest.yaml << 'EOF'
