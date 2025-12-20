@@ -1,0 +1,123 @@
+name: Build Talos r8127 Extension
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      kernel_version:
+        description: 'Kernel Version (z.B. 6.12.6)'
+        required: true
+        default: '6.12.6'
+      talos_version:
+        description: 'Talos Version Tag (z.B. v1.12.0-rc.1)'
+        required: true
+        default: 'v1.12.0-rc.1'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/talos-r8127-extension
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set versions
+        id: versions
+        run: |
+          # Setze Versionen aus Input oder Defaults
+          KERNEL_VERSION="${{ inputs.kernel_version || '6.12.6' }}"
+          TALOS_VERSION="${{ inputs.talos_version || 'v1.12.0-rc.1' }}"
+          DRIVER_VERSION="11.015.00"
+          
+          echo "kernel_version=${KERNEL_VERSION}" >> $GITHUB_OUTPUT
+          echo "talos_version=${TALOS_VERSION}" >> $GITHUB_OUTPUT
+          echo "driver_version=${DRIVER_VERSION}" >> $GITHUB_OUTPUT
+          
+          echo "=== Build Configuration ==="
+          echo "Kernel: ${KERNEL_VERSION}"
+          echo "Talos: ${TALOS_VERSION}"
+          echo "Driver: ${DRIVER_VERSION}"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.versions.outputs.talos_version }}
+            type=raw,value=latest
+            type=raw,value=v${{ steps.versions.outputs.driver_version }}
+            type=sha,prefix=
+
+      - name: Build and push Multi-Arch
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            KERNEL_VERSION=${{ steps.versions.outputs.kernel_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate SBOM
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.talos_version }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Talos Version | \`${{ steps.versions.outputs.talos_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Kernel Version | \`${{ steps.versions.outputs.kernel_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Driver Version | \`${{ steps.versions.outputs.driver_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Platforms | \`linux/amd64, linux/arm64\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Usage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`yaml" >> $GITHUB_STEP_SUMMARY
+          echo "machine:" >> $GITHUB_STEP_SUMMARY
+          echo "  install:" >> $GITHUB_STEP_SUMMARY
+          echo "    extensions:" >> $GITHUB_STEP_SUMMARY
+          echo "      - image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.talos_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "  kernel:" >> $GITHUB_STEP_SUMMARY
+          echo "    modules:" >> $GITHUB_STEP_SUMMARY
+          echo "      - name: r8127" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
