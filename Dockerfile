@@ -65,11 +65,9 @@ RUN cd /usr/src/linux && \
     scripts/config --disable CONFIG_MODVERSIONS && \
     scripts/config --enable CONFIG_MODULES && \
     scripts/config --enable CONFIG_MODULE_UNLOAD && \
-    # Lese aktuelle Kernel-Version aus Makefile (z.B. 6.18.2)
-    KERNEL_VER=$(make kernelversion) && \
-    KERNEL_PATCH=$(echo "${KERNEL_VERSION}" | cut -d. -f3) && \
-    # Setze EXTRAVERSION passend zur Talos Version (.{patch}-talos)
-    sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = .${KERNEL_PATCH}-talos/" Makefile && \
+    # Setze EXTRAVERSION passend zur Talos Version (-talos, ohne PATCH-Version)
+    # Talos verwendet z.B. 6.18.2-talos, nicht 6.18.2.2-talos
+    sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -talos/" Makefile && \
     make olddefconfig && \
     make modules_prepare && \
     touch Module.symvers && \
