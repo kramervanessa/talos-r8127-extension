@@ -1,0 +1,36 @@
+---
+# Example Talos Machine Configuration for RTL8127 10G NICs
+# This config loads the r8127 driver from the system extension
+
+version: v1alpha1
+debug: false
+persist: true
+
+machine:
+  # Load the r8127 system extension
+  install:
+    extensions:
+      - image: ghcr.io/kramervanessa/talos-r8127-extension:v1.12.1
+  
+  # Automatically load the r8127 kernel module
+  kernel:
+    modules:
+      - name: r8127
+  
+  # Optional: Network configuration example
+  # network:
+  #   interfaces:
+  #     - interface: enp1s0  # Adjust to your interface name
+  #       addresses:
+  #         - 192.168.1.10/24
+  #     - interface: enp49s0  # Second RTL8127 interface
+  #       addresses:
+  #         - 192.168.2.10/24
+
+cluster:
+  # Add your cluster configuration here
+  # Example:
+  # id: <cluster-id>
+  # secret: <cluster-secret>
+  # controlPlane:
+  #   endpoint: https://<control-plane-ip>:6443

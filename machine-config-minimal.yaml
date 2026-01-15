@@ -1,0 +1,14 @@
+---
+# Minimal Talos Machine Configuration for RTL8127
+# Only loads the r8127 extension and module
+
+version: v1alpha1
+persist: true
+
+machine:
+  install:
+    extensions:
+      - image: ghcr.io/kramervanessa/talos-r8127-extension:v1.12.1
+  kernel:
+    modules:
+      - name: r8127

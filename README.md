@@ -34,23 +34,27 @@ Talos Linux System Extension für **Realtek RTL8127 10 Gigabit Ethernet** NICs.
 
 ### 2. Machine Config
 
+**Mit Custom ISO (empfohlen):**
+Das ISO enthält bereits die Extension und blacklistet den `r8169` Treiber automatisch.
+
+Minimale Machine Config:
 ```yaml
+version: v1alpha1
+persist: true
+
 machine:
-  install:
-    extensions:
-      - image: ghcr.io/kramervanessa/talos-r8127-extension:v1.12.1
   kernel:
     modules:
       - name: r8127
 ```
 
-**Wichtig:** Das ISO enthält bereits die Extension und blacklistet den `r8169` Treiber automatisch. 
-Das `r8127` Modul wird automatisch geladen wenn es in der Machine Config spezifiziert ist.
-
-**Für manuelle Installation (ohne ISO):**
-Wenn du ein Standard-Talos ISO verwendest und die Extension manuell hinzufügst, musst du zusätzlich den r8169 Treiber blockieren:
+**Mit Standard-Talos ISO:**
+Wenn du ein Standard-Talos ISO verwendest, musst du die Extension hinzufügen:
 
 ```yaml
+version: v1alpha1
+persist: true
+
 machine:
   install:
     extensions:
@@ -61,6 +65,22 @@ machine:
     parameters:
       - key: modprobe.blacklist
         value: r8169
+```
+
+**Vollständige Beispiel-Config:**
+Siehe [`machine-config-example.yaml`](machine-config-example.yaml) für eine vollständige Beispiel-Konfiguration.
+
+**Config anwenden:**
+```bash
+talosctl apply-config --insecure \
+  --nodes <NODE_IP> \
+  --file machine-config.yaml
+```
+
+**Modul-Laden verifizieren:**
+```bash
+talosctl -n <NODE_IP> --insecure get kernelmodules
+talosctl -n <NODE_IP> --insecure get links
 ```
 
 ## Verfügbare Tags
