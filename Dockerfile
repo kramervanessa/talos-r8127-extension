@@ -89,14 +89,31 @@ RUN cd /build/driver/src && \
 # Erstelle Talos Extension Struktur mit korrekter Kernel Version
 # Talos Extension Format:
 #   /manifest.yaml
-#   /rootfs/lib/modules/...
+#   /rootfs/usr/lib/modules/<kernel-version>/kernel/...
+# Wichtig: Module müssen in kernel/ Unterverzeichnis sein, damit depmod sie findet
 RUN KVER=$(cat /tmp/kernel_version.txt) && \
     echo "Installing module for kernel version: ${KVER}" && \
-    mkdir -p /extension/rootfs/lib/modules/${KVER}/extras && \
-    install -m 644 /build/driver/src/r8127.ko /extension/rootfs/lib/modules/${KVER}/extras/r8127.ko && \
-    # Generiere modules.dep
-    depmod -b /extension/rootfs ${KVER} 2>/dev/null || true && \
-    echo "Installed r8127.ko for kernel ${KVER}"
+    # Erstelle korrekte Verzeichnisstruktur für Kernel-Module
+    MODULE_DIR="/extension/rootfs/usr/lib/modules/${KVER}/kernel/drivers/net/ethernet/realtek" && \
+    mkdir -p ${MODULE_DIR} && \
+    install -m 644 /build/driver/src/r8127.ko ${MODULE_DIR}/r8127.ko && \
+    # Generiere modules.dep, modules.alias, modules.symbols etc.
+    # depmod benötigt das komplette /usr/lib/modules/<kernel-version> Verzeichnis
+    echo "Generating modules.dep for kernel ${KVER}..." && \
+    depmod -b /extension/rootfs/usr -F /usr/src/linux/include/config/kernel.release -E /usr/src/linux/Module.symvers ${KVER} 2>&1 || \
+    depmod -b /extension/rootfs/usr ${KVER} 2>&1 || \
+    (echo "Warning: depmod failed, trying alternative method..." && \
+     cd /extension/rootfs/usr/lib/modules/${KVER} && \
+     depmod -b /extension/rootfs/usr ${KVER} 2>&1) && \
+    # Verifiziere dass modules.dep erstellt wurde
+    if [ -f "/extension/rootfs/usr/lib/modules/${KVER}/modules.dep" ]; then \
+        echo "✓ modules.dep created successfully" && \
+        head -3 /extension/rootfs/usr/lib/modules/${KVER}/modules.dep; \
+    else \
+        echo "⚠ Warning: modules.dep not found, creating minimal version" && \
+        echo "kernel/drivers/net/ethernet/realtek/r8127.ko:" > /extension/rootfs/usr/lib/modules/${KVER}/modules.dep; \
+    fi && \
+    echo "Installed r8127.ko for kernel ${KVER} at ${MODULE_DIR}"
 
 # Erstelle manifest.yaml fuer Talos Extension (im Root der Extension)
 RUN cat > /extension/manifest.yaml << 'EOF'
