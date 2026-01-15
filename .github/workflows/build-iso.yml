@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       talos_version:
-        description: 'Talos Version (z.B. v1.12.0-rc.1)'
+        description: 'Talos Version (z.B. v1.12.1)'
         required: true
-        default: 'v1.12.0-rc.1'
+        default: 'v1.12.1'
       arch:
         description: 'Architecture (amd64 or arm64)'
         required: true
-        default: 'amd64'
+        default: 'arm64'
         type: choice
         options:
           - amd64
@@ -40,25 +40,36 @@ jobs:
         run: |
           TALOS_VERSION="${{ inputs.talos_version }}"
           ARCH="${{ matrix.arch }}"
+          EXTENSION_TAG="${{ env.REGISTRY }}/${{ env.EXTENSION_IMAGE }}:${TALOS_VERSION}"
           
           echo "Building Talos ISO for ${ARCH}..."
           echo "Talos Version: ${TALOS_VERSION}"
-          echo "Extension: ${{ env.REGISTRY }}/${{ env.EXTENSION_IMAGE }}:${TALOS_VERSION}"
+          echo "Extension: ${EXTENSION_TAG}"
           
           mkdir -p iso-output
           
+          # Build ISO with r8127 extension and kernel module configuration
           docker run --rm -t \
             --platform linux/${ARCH} \
             -v $(pwd)/iso-output:/out \
             ghcr.io/siderolabs/imager:${TALOS_VERSION} iso \
             --arch ${ARCH} \
-            --system-extension-image ${{ env.REGISTRY }}/${{ env.EXTENSION_IMAGE }}:${TALOS_VERSION}
+            --system-extension-image ${EXTENSION_TAG} \
+            --extra-kernel-arg "module.sig_enforce=0"
           
-          # Rename ISO
-          mv iso-output/metal-${ARCH}.iso iso-output/talos-${TALOS_VERSION}-${ARCH}-r8127.iso
+          # Rename ISO with descriptive name
+          if [ -f "iso-output/metal-${ARCH}.iso" ]; then
+            mv iso-output/metal-${ARCH}.iso iso-output/talos-${TALOS_VERSION}-${ARCH}-r8127.iso
+            echo "ISO created: talos-${TALOS_VERSION}-${ARCH}-r8127.iso"
+          else
+            echo "Error: ISO file not found!"
+            ls -lah iso-output/
+            exit 1
+          fi
           
-          echo "ISO created: talos-${TALOS_VERSION}-${ARCH}-r8127.iso"
-          ls -lah iso-output/
+          echo ""
+          echo "=== ISO Build Complete ==="
+          ls -lh iso-output/talos-${TALOS_VERSION}-${ARCH}-r8127.iso
 
       - name: Upload ISO
         uses: actions/upload-artifact@v4
@@ -69,13 +80,30 @@ jobs:
 
       - name: Summary
         run: |
+          TALOS_VERSION="${{ inputs.talos_version }}"
+          ARCH="${{ matrix.arch }}"
+          
           echo "## ISO Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Architecture | \`${{ matrix.arch }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Talos Version | \`${{ inputs.talos_version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Extension | \`${{ env.REGISTRY }}/${{ env.EXTENSION_IMAGE }}:${{ inputs.talos_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Architecture | \`${ARCH}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Talos Version | \`${TALOS_VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Extension | \`${{ env.REGISTRY }}/${{ env.EXTENSION_IMAGE }}:${TALOS_VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| ISO Filename | \`talos-${TALOS_VERSION}-${ARCH}-r8127.iso\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Download the ISO from the Artifacts section above." >> $GITHUB_STEP_SUMMARY
+          echo "### Usage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the ISO from the Artifacts section above" >> $GITHUB_STEP_SUMMARY
+          echo "2. Write ISO to USB drive or boot from network" >> $GITHUB_STEP_SUMMARY
+          echo "3. The r8127 kernel module will be loaded automatically" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Machine Config" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`yaml" >> $GITHUB_STEP_SUMMARY
+          echo "machine:" >> $GITHUB_STEP_SUMMARY
+          echo "  kernel:" >> $GITHUB_STEP_SUMMARY
+          echo "    modules:" >> $GITHUB_STEP_SUMMARY
+          echo "      - name: r8127" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
