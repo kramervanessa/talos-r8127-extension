@@ -1,6 +1,6 @@
 # Talos r8127 Extension
 
-[![Build Talos r8127 Extension](https://github.com/DEIN-USER/talos-r8127-extension/actions/workflows/build-extension.yml/badge.svg)](https://github.com/DEIN-USER/talos-r8127-extension/actions/workflows/build-extension.yml)
+[![Build Talos r8127 Extension](https://github.com/kramervanessa/talos-r8127-extension/actions/workflows/build-extension.yml/badge.svg)](https://github.com/kramervanessa/talos-r8127-extension/actions/workflows/build-extension.yml)
 
 Talos Linux System Extension für **Realtek RTL8127 10 Gigabit Ethernet** NICs.
 
@@ -28,7 +28,7 @@ Talos Linux System Extension für **Realtek RTL8127 10 Gigabit Ethernet** NICs.
 2. Wähle deine Talos Version
 3. Unter "System Extensions" → "Custom Extensions" hinzufügen:
    ```
-   ghcr.io/DEIN-USER/talos-r8127-extension:v1.12.0-rc.1
+   ghcr.io/kramervanessa/talos-r8127-extension:v1.12.1
    ```
 4. ISO generieren und Node booten
 
@@ -38,7 +38,7 @@ Talos Linux System Extension für **Realtek RTL8127 10 Gigabit Ethernet** NICs.
 machine:
   install:
     extensions:
-      - image: ghcr.io/DEIN-USER/talos-r8127-extension:v1.12.0-rc.1
+      - image: ghcr.io/kramervanessa/talos-r8127-extension:v1.12.1
   kernel:
     modules:
       - name: r8127
@@ -48,9 +48,11 @@ machine:
 
 | Tag | Beschreibung |
 |-----|--------------|
-| `v1.12.0-rc.1` | Für Talos v1.12.0-rc.1 (Kernel 6.12.6) |
+| `v1.12.1` | Für Talos v1.12.1 (Kernel 6.18.2) |
 | `latest` | Aktuellste Version |
 | `v11.015.00` | Treiber-Version |
+
+**Hinweis**: Alle Images sind mit Cosign signiert für sichere Installation.
 
 ## Build
 
@@ -59,8 +61,8 @@ machine:
 ```bash
 docker buildx build \
   --platform linux/arm64,linux/amd64 \
-  --build-arg KERNEL_VERSION=6.12.6 \
-  -t ghcr.io/DEIN-USER/talos-r8127-extension:v1.12.0-rc.1 \
+  --build-arg KERNEL_VERSION=6.18.2 \
+  -t ghcr.io/kramervanessa/talos-r8127-extension:v1.12.1 \
   --push .
 ```
 
@@ -74,16 +76,34 @@ Der Workflow baut automatisch bei:
 ```bash
 # Manueller Trigger via GitHub CLI
 gh workflow run build-extension.yml \
-  -f kernel_version=6.12.6 \
-  -f talos_version=v1.12.0-rc.1
+  -f kernel_version=6.18.2 \
+  -f talos_version=v1.12.1
 ```
 
 ## Versionsmatrix
 
-| Talos | Kernel | Extension Tag |
-|-------|--------|---------------|
-| v1.12.0-rc.1 | 6.12.6 | v1.12.0-rc.1 |
-| v1.11.6 | 6.6.x | (nicht getestet) |
+| Talos | Kernel | Extension Tag | Status |
+|-------|--------|---------------|--------|
+| v1.12.1 | 6.18.2 | v1.12.1 | ✅ Aktuell |
+| v1.12.0 | 6.18.0 | v1.12.0 | ✅ Unterstützt |
+| v1.12.0-rc.1 | 6.18.0 | v1.12.0-rc.1 | ⚠️ Veraltet |
+
+## Sicherheit und Signierung
+
+Alle Extension-Images werden automatisch mit **Cosign** (Keyless Signing) signiert:
+
+- ✅ **Keyless Signing**: Nutzt GitHub Actions OIDC für sichere Signierung ohne Key-Management
+- ✅ **Automatische Signatur**: Bei jedem Push/Tag wird das Image signiert
+- ✅ **Verifizierung**: Images können mit `cosign verify` geprüft werden
+
+**Signatur-Verifizierung**:
+
+```bash
+cosign verify \
+  --certificate-identity-regexp '^https://github\.com/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/kramervanessa/talos-r8127-extension:v1.12.1
+```
 
 ## Struktur
 
@@ -91,7 +111,7 @@ gh workflow run build-extension.yml \
 .
 ├── .github/
 │   └── workflows/
-│       └── build-extension.yml    # GitHub Actions Workflow
+│       └── build-extension.yml    # GitHub Actions Workflow (mit Cosign)
 ├── Dockerfile                      # Multi-Arch Build
 ├── manifest.yaml                   # Extension Metadata
 ├── r8127-11.015.00/               # Realtek Treiber Source

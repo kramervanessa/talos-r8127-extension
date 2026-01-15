@@ -3,8 +3,9 @@
 # Multi-Arch Build (ARM64 + AMD64)
 # =============================================================================
 
-# Talos 1.12.0-rc.1 verwendet Kernel 6.18.0-talos
-ARG KERNEL_VERSION=6.18
+# Talos 1.12.1 verwendet Kernel 6.18.2-talos
+# Kernel-Version wird als Build-Arg übergeben (z.B. 6.18.2)
+ARG KERNEL_VERSION=6.18.2
 
 # -----------------------------------------------------------------------------
 # Stage 1: Build Environment
@@ -45,29 +46,37 @@ WORKDIR /build
 # Kopiere Treiber Source
 COPY r8127-11.015.00/ /build/driver/
 
-# Download Kernel 6.18 Source
+# Download Kernel Source
+# Extrahiere Major.Minor Version aus KERNEL_VERSION (z.B. 6.18.2 -> v6.x)
 RUN echo "Downloading kernel ${KERNEL_VERSION}..." && \
+    KERNEL_MAJOR_MINOR=$(echo "${KERNEL_VERSION}" | cut -d. -f1-2) && \
     mkdir -p /usr/src && \
-    wget -q "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz" -O /tmp/linux.tar.xz && \
+    wget -q "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR_MINOR}.x/linux-${KERNEL_VERSION}.tar.xz" -O /tmp/linux.tar.xz && \
     tar xf /tmp/linux.tar.xz -C /usr/src && \
     mv /usr/src/linux-* /usr/src/linux && \
     rm /tmp/linux.tar.xz && \
     echo "Kernel ${KERNEL_VERSION} downloaded"
 
 # Konfiguriere Kernel fuer Module Build
+# Bestimme Kernel-Version dynamisch und setze EXTRAVERSION
 RUN cd /usr/src/linux && \
     echo "Configuring kernel for ${TARGETARCH}..." && \
     make defconfig && \
     scripts/config --disable CONFIG_MODVERSIONS && \
     scripts/config --enable CONFIG_MODULES && \
     scripts/config --enable CONFIG_MODULE_UNLOAD && \
-    # Setze EXTRAVERSION passend zur Talos Version (6.18.0-talos)
-    sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION = .0-talos/' Makefile && \
+    # Lese aktuelle Kernel-Version aus Makefile (z.B. 6.18.2)
+    KERNEL_VER=$(make kernelversion) && \
+    KERNEL_PATCH=$(echo "${KERNEL_VERSION}" | cut -d. -f3) && \
+    # Setze EXTRAVERSION passend zur Talos Version (.{patch}-talos)
+    sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = .${KERNEL_PATCH}-talos/" Makefile && \
     make olddefconfig && \
     make modules_prepare && \
     touch Module.symvers && \
     # Zeige resultierende Kernel Version
-    cat include/config/kernel.release && \
+    FINAL_KVER=$(cat include/config/kernel.release) && \
+    echo "Final kernel version: ${FINAL_KVER}" && \
+    echo "${FINAL_KVER}" > /tmp/kernel_version.txt && \
     echo "Kernel configured"
 
 # Build Kernel Module
@@ -77,11 +86,12 @@ RUN cd /build/driver/src && \
     ls -la *.ko && \
     echo "Build successful!"
 
-# Erstelle Talos Extension Struktur mit korrekter Kernel Version (6.18.0-talos)
+# Erstelle Talos Extension Struktur mit korrekter Kernel Version
 # Talos Extension Format:
 #   /manifest.yaml
 #   /rootfs/lib/modules/...
-RUN KVER="6.18.0-talos" && \
+RUN KVER=$(cat /tmp/kernel_version.txt) && \
+    echo "Installing module for kernel version: ${KVER}" && \
     mkdir -p /extension/rootfs/lib/modules/${KVER}/extras && \
     install -m 644 /build/driver/src/r8127.ko /extension/rootfs/lib/modules/${KVER}/extras/r8127.ko && \
     # Generiere modules.dep
@@ -100,7 +110,9 @@ metadata:
     Supports RTL8127 PCIe 10G NICs found in Minisforum MS-R1 and similar devices.
   compatibility:
     talos:
-      version: ">= v1.12.0"
+      version: ">= v1.12.0 < v1.13.0"
+    kernel:
+      version: "6.18.x"
 EOF
 
 # Zeige Extension Struktur

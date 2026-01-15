@@ -10,13 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: 'Kernel Version (z.B. 6.12.6)'
+        description: 'Kernel Version (z.B. 6.18.2)'
         required: true
-        default: '6.12.6'
+        default: '6.18.2'
       talos_version:
-        description: 'Talos Version Tag (z.B. v1.12.0-rc.1)'
+        description: 'Talos Version Tag (z.B. v1.12.1)'
         required: true
-        default: 'v1.12.0-rc.1'
+        default: 'v1.12.1'
 
 env:
   REGISTRY: ghcr.io
@@ -28,6 +28,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write  # Required for Cosign keyless signing
 
     steps:
       - name: Checkout repository
@@ -51,8 +52,8 @@ jobs:
         id: versions
         run: |
           # Setze Versionen aus Input oder Defaults
-          KERNEL_VERSION="${{ inputs.kernel_version || '6.12.6' }}"
-          TALOS_VERSION="${{ inputs.talos_version || 'v1.12.0-rc.1' }}"
+          KERNEL_VERSION="${{ github.event.inputs.kernel_version || '6.18.2' }}"
+          TALOS_VERSION="${{ github.event.inputs.talos_version || 'v1.12.1' }}"
           DRIVER_VERSION="11.015.00"
           
           echo "kernel_version=${KERNEL_VERSION}" >> $GITHUB_OUTPUT
@@ -96,6 +97,43 @@ jobs:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.talos_version }}
           format: spdx-json
           output-file: sbom.spdx.json
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign container images (Keyless)
+        if: github.event_name != 'pull_request'
+        run: |
+          # Sign main tags (skip SHA tags as they're immutable references)
+          MAIN_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.talos_version }}"
+          LATEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          DRIVER_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v${{ steps.versions.outputs.driver_version }}"
+          
+          echo "Signing main tag: $MAIN_TAG"
+          cosign sign --yes \
+            --oidc-provider=github \
+            "$MAIN_TAG"
+          
+          echo "Signing latest tag: $LATEST_TAG"
+          cosign sign --yes \
+            --oidc-provider=github \
+            "$LATEST_TAG"
+          
+          echo "Signing driver version tag: $DRIVER_TAG"
+          cosign sign --yes \
+            --oidc-provider=github \
+            "$DRIVER_TAG"
+
+      - name: Verify signatures
+        if: github.event_name != 'pull_request'
+        run: |
+          MAIN_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.talos_version }}"
+          echo "Verifying signature for: $MAIN_TAG"
+          cosign verify \
+            --certificate-identity-regexp '^https://github\.com/' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$MAIN_TAG"
 
       - name: Summary
         run: |

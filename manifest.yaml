@@ -1,22 +1,28 @@
-version: v11.015.00
-name: r8127
-author: Realtek / Vanessa Kramer
-description: |
-  Realtek RTL8127 10 Gigabit Ethernet driver for Talos Linux.
-  Supports RTL8127 PCIe 10G NICs found in Minisforum MS-R1 and similar devices.
-  
-  Tested on:
-  - Minisforum MS-R1 (ARM64) - 2x RTL8127 10G NICs
-  
-  Usage:
-  Add to machine config:
-    machine:
-      kernel:
-        modules:
-          - name: r8127
-
-compatibility:
-  talos:
-    version: ">= v1.12.0"
+version: v1alpha1
+metadata:
+  name: r8127
+  version: 11.015.00
+  author: kramervanessa
+  description: |
+    Realtek RTL8127 10 Gigabit Ethernet driver for Talos Linux.
+    Supports RTL8127 PCIe 10G NICs found in Minisforum MS-R1 and similar devices.
+    
+    Tested on:
+    - Minisforum MS-R1 (ARM64) - 2x RTL8127 10G NICs
+    
+    Usage:
+    Add to machine config:
+      machine:
+        install:
+          extensions:
+            - image: ghcr.io/kramervanessa/talos-r8127-extension:v1.12.1
+        kernel:
+          modules:
+            - name: r8127
+  compatibility:
+    talos:
+      version: ">= v1.12.0 < v1.13.0"
+    kernel:
+      version: "6.18.x"
 
 
