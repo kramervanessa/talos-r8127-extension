@@ -49,13 +49,15 @@ jobs:
           mkdir -p iso-output
           
           # Build ISO with r8127 extension and kernel module configuration
+          # Blacklist r8169 driver and allow unsigned modules for r8127
           docker run --rm -t \
             --platform linux/${ARCH} \
             -v $(pwd)/iso-output:/out \
             ghcr.io/siderolabs/imager:${TALOS_VERSION} iso \
             --arch ${ARCH} \
             --system-extension-image ${EXTENSION_TAG} \
-            --extra-kernel-arg "module.sig_enforce=0"
+            --extra-kernel-arg "module.sig_enforce=0" \
+            --extra-kernel-arg "modprobe.blacklist=r8169"
           
           # Rename ISO with descriptive name
           if [ -f "iso-output/metal-${ARCH}.iso" ]; then
