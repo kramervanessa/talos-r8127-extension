@@ -44,6 +44,25 @@ machine:
       - name: r8127
 ```
 
+**Wichtig:** Das ISO enthält bereits die Extension und blacklistet den `r8169` Treiber automatisch. 
+Das `r8127` Modul wird automatisch geladen wenn es in der Machine Config spezifiziert ist.
+
+**Für manuelle Installation (ohne ISO):**
+Wenn du ein Standard-Talos ISO verwendest und die Extension manuell hinzufügst, musst du zusätzlich den r8169 Treiber blockieren:
+
+```yaml
+machine:
+  install:
+    extensions:
+      - image: ghcr.io/kramervanessa/talos-r8127-extension:v1.12.1
+  kernel:
+    modules:
+      - name: r8127
+    parameters:
+      - key: modprobe.blacklist
+        value: r8169
+```
+
 ## Verfügbare Tags
 
 | Tag | Beschreibung |
