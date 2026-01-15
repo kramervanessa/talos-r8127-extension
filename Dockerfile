@@ -47,11 +47,11 @@ WORKDIR /build
 COPY r8127-11.015.00/ /build/driver/
 
 # Download Kernel Source
-# Extrahiere Major.Minor Version aus KERNEL_VERSION (z.B. 6.18.2 -> v6.x)
+# Kernel.org URL-Struktur: v6.x für alle 6.x.y Versionen
 RUN echo "Downloading kernel ${KERNEL_VERSION}..." && \
-    KERNEL_MAJOR_MINOR=$(echo "${KERNEL_VERSION}" | cut -d. -f1-2) && \
+    KERNEL_MAJOR=$(echo "${KERNEL_VERSION}" | cut -d. -f1) && \
     mkdir -p /usr/src && \
-    wget -q "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR_MINOR}.x/linux-${KERNEL_VERSION}.tar.xz" -O /tmp/linux.tar.xz && \
+    wget -q "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" -O /tmp/linux.tar.xz && \
     tar xf /tmp/linux.tar.xz -C /usr/src && \
     mv /usr/src/linux-* /usr/src/linux && \
     rm /tmp/linux.tar.xz && \
