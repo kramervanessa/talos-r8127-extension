@@ -106,24 +106,19 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           # Sign main tags (skip SHA tags as they're immutable references)
+          # Cosign automatically detects GitHub Actions OIDC environment
           MAIN_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.talos_version }}"
           LATEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           DRIVER_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v${{ steps.versions.outputs.driver_version }}"
           
           echo "Signing main tag: $MAIN_TAG"
-          cosign sign --yes \
-            --oidc-provider=github \
-            "$MAIN_TAG"
+          cosign sign --yes "$MAIN_TAG"
           
           echo "Signing latest tag: $LATEST_TAG"
-          cosign sign --yes \
-            --oidc-provider=github \
-            "$LATEST_TAG"
+          cosign sign --yes "$LATEST_TAG"
           
           echo "Signing driver version tag: $DRIVER_TAG"
-          cosign sign --yes \
-            --oidc-provider=github \
-            "$DRIVER_TAG"
+          cosign sign --yes "$DRIVER_TAG"
 
       - name: Verify signatures
         if: github.event_name != 'pull_request'
