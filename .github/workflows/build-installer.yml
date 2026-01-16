@@ -56,7 +56,7 @@ jobs:
             --arch ${ARCH} \
             --system-extension-image ${EXTENSION_IMAGE}
           
-          ls -la /out/
+          ls -la installer-${ARCH}.tar
 
       - name: Load and Push Installer
         run: |
