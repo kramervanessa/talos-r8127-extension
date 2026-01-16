@@ -1,0 +1,110 @@
+name: Build Talos Installer with r8127
+
+on:
+  workflow_dispatch:
+    inputs:
+      talos_version:
+        description: 'Talos Version (z.B. v1.12.1)'
+        required: true
+        default: 'v1.12.1'
+      arch:
+        description: 'Architecture'
+        required: true
+        default: 'arm64'
+        type: choice
+        options:
+          - arm64
+          - amd64
+
+env:
+  REGISTRY: ghcr.io
+  INSTALLER_NAME: ${{ github.repository_owner }}/talos-installer-r8127
+  EXTENSION_NAME: ${{ github.repository_owner }}/talos-r8127-extension
+
+jobs:
+  build-installer:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Installer with Extension
+        run: |
+          TALOS_VERSION="${{ github.event.inputs.talos_version }}"
+          ARCH="${{ github.event.inputs.arch }}"
+          EXTENSION_IMAGE="${{ env.REGISTRY }}/${{ env.EXTENSION_NAME }}:${TALOS_VERSION}"
+          
+          echo "Building installer for Talos ${TALOS_VERSION} (${ARCH})"
+          echo "Including extension: ${EXTENSION_IMAGE}"
+          
+          docker run --rm -t -v $(pwd):/out \
+            ghcr.io/siderolabs/imager:${TALOS_VERSION} installer \
+            --arch ${ARCH} \
+            --system-extension-image ${EXTENSION_IMAGE}
+          
+          ls -la /out/
+
+      - name: Load and Push Installer
+        run: |
+          TALOS_VERSION="${{ github.event.inputs.talos_version }}"
+          ARCH="${{ github.event.inputs.arch }}"
+          INSTALLER_TAG="${{ env.REGISTRY }}/${{ env.INSTALLER_NAME }}:${TALOS_VERSION}-${ARCH}"
+          
+          # Load the installer image
+          docker load -i installer-${ARCH}.tar
+          
+          # Get the loaded image name and re-tag it
+          LOADED_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep installer-base | head -1)
+          echo "Loaded image: ${LOADED_IMAGE}"
+          
+          docker tag ${LOADED_IMAGE} ${INSTALLER_TAG}
+          docker push ${INSTALLER_TAG}
+          
+          echo "Pushed: ${INSTALLER_TAG}"
+
+      - name: Summary
+        run: |
+          TALOS_VERSION="${{ github.event.inputs.talos_version }}"
+          ARCH="${{ github.event.inputs.arch }}"
+          INSTALLER_TAG="${{ env.REGISTRY }}/${{ env.INSTALLER_NAME }}:${TALOS_VERSION}-${ARCH}"
+          
+          echo "## Installer Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Installer Image | \`${INSTALLER_TAG}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Talos Version | \`${TALOS_VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Architecture | \`${ARCH}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Usage in Omni" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Use this installer for upgrades:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${INSTALLER_TAG}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Config Patch (apply in Omni)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`yaml" >> $GITHUB_STEP_SUMMARY
+          echo "machine:" >> $GITHUB_STEP_SUMMARY
+          echo "  install:" >> $GITHUB_STEP_SUMMARY
+          echo "    extraKernelArgs:" >> $GITHUB_STEP_SUMMARY
+          echo "      - module.sig_enforce=0" >> $GITHUB_STEP_SUMMARY
+          echo "  kernel:" >> $GITHUB_STEP_SUMMARY
+          echo "    modules:" >> $GITHUB_STEP_SUMMARY
+          echo "      - name: r8127" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
